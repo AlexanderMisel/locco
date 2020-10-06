@@ -32,29 +32,12 @@
 
 -- ### Setup & Helpers
 
--- Add script path to package path to find submodules.
-local script_path = arg[0]:match('(.+)/.+')
-package.path = table.concat({
-  script_path..'/?.lua',
-  package.path
-}, ';')
-
 -- Load markdown.lua.
-local md = require 'markdown'
+local md = require('locco.markdown')
 -- Load Lua Balanced.
-local lb = require 'luabalanced'
+local lb = require('locco.luabalanced')
 -- Load HTML templates.
-local template = require 'template'
-
--- Ensure the `docs` directory exists and return the _path_ of the source file.<br>
--- Parameter:<br>
--- _source_: The source file for which documentation is generated.<br>
-local function ensure_directory(source)
-  local path = source:match('(.+)/.+$')
-  if not path then path = '.' end
-  os.execute('mkdir -p '..path..'/docs')
-  return path
-end
+local template = require('locco.template')
 
 -- Insert HTML entities in a string.<br>
 -- Parameter:<br>
@@ -183,6 +166,13 @@ local function parse(source)
   return sections
 end
 
+local function cleanup(docs_text)
+  return docs_text:gsub('^%(c%)([^\r\n]*)', '&copy;%1<br>')
+    :gsub('\n%(c%)([^\r\n]*)', '\n&copy;%1<br>')
+    :gsub('\n@param%s+(%w+)%s+([^\r\n]*)', '\n- _%1_: %2')
+    :gsub('\n@return%s+([^\r\n]*)', '\n- return: %1')
+end
+
 -- Loop through a table of split sections and convert the documentation
 -- from Markdown to HTML and pass the code through Locco's syntax
 -- highlighting. Add  _docs\_html_ and _code\_html_ elements to the sections
@@ -191,7 +181,7 @@ end
 -- _sections_: A table with split sections.<br>
 local function highlight(sections)
   for i=1, #sections do
-    sections[i]['docs_html'] = md.markdown(sections[i]['docs_text'])
+    sections[i]['docs_html'] = md(cleanup(sections[i]['docs_text'])):gsub('%%', '&#37;')
     sections[i]['code_html'] = highlight_lua(sections[i]['code_text'])
   end
   return sections
@@ -208,7 +198,7 @@ end
 local function generate_html(source, path, filename, sections, jump_to)
   local f, err = io.open(path..'/'..'docs/'..filename:gsub('lua$', 'html'), 'wb')
   if err then print(err) end
-  local h = template.header:gsub('%%title%%', source)
+  local h = template.header:gsub('%%title%%', filename)
   h = h:gsub('%%jump%%', jump_to)
   f:write(h)
   for i=1, #sections do
@@ -231,36 +221,10 @@ end
 -- _jump\_to_: A HTML chunk with links to other documentation files.
 local function generate_documentation(source, path, filename, jump_to)
   local sections = parse(source)
-  local sections = highlight(sections)
+  sections = highlight(sections)
   generate_html(source, path, filename, sections, jump_to)
 end
 
-
--- Run the script.
-
--- Generate HTML links to other files in the documentation.
-local jump_to = ''
-if #arg > 1 then
-  jump_to = template.jump_start
-  for i=1, #arg do
-    local link = arg[i]:gsub('lua$', 'html')
-    link = link:match('.+/(.+)$') or link
-    local t = template.jump:gsub('%%jump_html%%', link)
-    t = t:gsub('%%jump_lua%%', arg[i])
-    jump_to = jump_to..t
-  end
-  jump_to = jump_to..template.jump_end
-end
-
--- Make sure the output directory exists, generate the HTML files for each
--- source file, print what's happening and write the style sheet.
-local path = ensure_directory(arg[1])
-for i=1, #arg do
-  local filename = arg[i]:match('.+/(.+)$') or arg[i]
-  generate_documentation(arg[i], path, filename, jump_to)
-  print(arg[i]..' --> '..path..'/docs/'..filename:gsub('lua$', 'html'))
-end
-local f, err = io.open(path..'/'..'docs/locco.css', 'wb')
-if err then print(err) end
-f:write(template.css)
-f:close()
+return {
+  generate_documentation = generate_documentation
+}

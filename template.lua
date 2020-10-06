@@ -181,7 +181,7 @@ table td {
     pre, tt, code {
       font-size: 12px; line-height: 18px;
       font-family: Menlo, Monaco, Consolas, "Lucida Console", monospace;
-      margin: 0; padding: 0;
+      margin: 0; padding: 0; white-space: pre-wrap;
     }
 
 
